@@ -2,10 +2,12 @@ import json
 
 import pytest
 
-from axiomrunner.domain import ChallengeProblem, ModelMetrics
+from axiomrunner.adversarial import Counterexample
+from axiomrunner.domain import Candidate, ChallengeProblem, ModelMetrics, VerificationKind
 from axiomrunner.errors import ModelProtocolError
 from axiomrunner.ollama import OllamaClient
 from axiomrunner.reasoning import ProblemAnalysis, ReasoningEngine
+from axiomrunner.reasoning import TestDesign as Design
 
 
 def problem() -> ChallengeProblem:
@@ -94,5 +96,83 @@ def test_semantically_invalid_analysis_is_rejected() -> None:
         engine(value).analyze(problem(), 5)
 
 
+def test_repair_creates_deterministic_child_candidate() -> None:
+    subject = engine(
+        {"source": "def answer():\n    return 1\n", "complexity": "O(1)", "assumptions": []}
+    )
+    parent = Candidate("parent", "constant", "def answer():\n    return 0\n")
+    repaired = subject.repair(problem(), _analysis_stub(), parent, (Counterexample((), {}),), 5)
+    assert repaired.parent_id == "parent"
+    assert repaired.revision == 1
+    assert repaired.strategy_id == "constant"
+    assert repaired.source.endswith("return 1\n")
+
+
+def test_repair_requires_observed_counterexample() -> None:
+    with pytest.raises(ValueError, match="counterexample"):
+        engine().repair(
+            problem(),
+            _analysis_stub(),
+            Candidate("parent", "constant", "pass"),
+            (),
+            5,
+        )
+
+
+def test_executable_verification_suite_is_structured_and_independent() -> None:
+    subject = engine(
+        {
+            "oracle_source": "def reference():\n    return 1\n",
+            "oracle_entrypoint": "reference",
+            "cases": [
+                {
+                    "case_id": "small",
+                    "kind": "oracle",
+                    "args": [],
+                    "kwargs": {},
+                    "expected": None,
+                    "comparison": "equal",
+                    "followup_args": [],
+                    "followup_kwargs": {},
+                }
+            ],
+        }
+    )
+    design = subject.verification_suite(
+        problem(),
+        _design_stub(),
+        5,
+    )
+    assert design.cases[0].kind is VerificationKind.ORACLE
+    assert design.oracle_entrypoint == "reference"
+
+
+def test_verification_suite_rejects_half_configured_oracle() -> None:
+    subject = engine(
+        {
+            "oracle_source": "def reference(): return 1",
+            "oracle_entrypoint": "",
+            "cases": [
+                {
+                    "case_id": "boundary",
+                    "kind": "boundary",
+                    "args": [],
+                    "kwargs": {},
+                    "expected": 1,
+                    "comparison": "equal",
+                    "followup_args": [],
+                    "followup_kwargs": {},
+                }
+            ],
+        }
+    )
+    with pytest.raises(ModelProtocolError, match="both"):
+        subject.verification_suite(problem(), _design_stub(), 5)
+
+
 def _analysis_stub() -> ProblemAnalysis:
     return ProblemAnalysis("summary", (), (), (), (), "O(1)", (), ModelMetrics(0))
+
+
+def _design_stub() -> Design:
+    return Design(("empty",), ("constant",), (), "direct", ModelMetrics(0))

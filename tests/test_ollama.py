@@ -28,6 +28,7 @@ def test_client_sends_schema_and_records_metrics() -> None:
     assert reply.metrics.response_tokens == 8
     assert captured["timeout"] == 3.0
     assert captured["payload"]["format"] == {"type": "object"}  # type: ignore[index]
+    assert captured["payload"]["think"] is False  # type: ignore[index]
 
 
 @pytest.mark.parametrize(

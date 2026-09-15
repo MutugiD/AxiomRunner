@@ -24,6 +24,22 @@ class CheckStatus(StrEnum):
     INCONCLUSIVE = "inconclusive"
 
 
+class VerificationKind(StrEnum):
+    BOUNDARY = "boundary"
+    ORACLE = "oracle"
+    PROPERTY = "property"
+    METAMORPHIC = "metamorphic"
+
+
+class Comparison(StrEnum):
+    EQUAL = "equal"
+    NOT_EQUAL = "not_equal"
+    LESS_EQUAL = "less_equal"
+    GREATER_EQUAL = "greater_equal"
+    TRUTHY = "truthy"
+    FALSY = "falsy"
+
+
 @dataclass(frozen=True, slots=True)
 class ChallengeProblem:
     problem_id: str
@@ -68,6 +84,29 @@ class Candidate:
     revision: int = 0
     parent_id: str | None = None
     metrics: ModelMetrics | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CallSpec:
+    args: tuple[JsonValue, ...] = ()
+    kwargs: dict[str, JsonValue] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
+class VerificationCase:
+    case_id: str
+    kind: VerificationKind
+    call: CallSpec
+    expected: JsonValue = None
+    comparison: Comparison = Comparison.EQUAL
+    followup: CallSpec | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class VerificationSuite:
+    cases: tuple[VerificationCase, ...]
+    oracle_source: str | None = None
+    oracle_entrypoint: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
