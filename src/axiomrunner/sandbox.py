@@ -79,6 +79,7 @@ class DockerSandbox:
                 json.dumps(list(problem.public_examples), ensure_ascii=False), encoding="utf-8"
             )
             (directory / "runner.py").write_text(RUNNER_SOURCE, encoding="utf-8")
+            directory.chmod(0o755)
             mount = f"{directory.resolve()}:/work:ro"
             command = [
                 docker or "docker",
