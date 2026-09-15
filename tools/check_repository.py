@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 import re
 import sys
-
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TITLE_PATTERN = re.compile(r"^(task|feat): [a-z0-9].+")
@@ -17,7 +16,11 @@ FORBIDDEN = ("generated " + "by codex", "co-authored-by: " + "codex")
 def main() -> int:
     failures: list[str] = []
     required = (ROOT / "README.md", ROOT / "documentation" / "README.md")
-    failures.extend(f"missing required file: {path.relative_to(ROOT)}" for path in required if not path.is_file())
+    failures.extend(
+        f"missing required file: {path.relative_to(ROOT)}"
+        for path in required
+        if not path.is_file()
+    )
 
     title = os.environ.get("PR_TITLE")
     if title and not TITLE_PATTERN.fullmatch(title):
