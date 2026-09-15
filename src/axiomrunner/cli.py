@@ -6,6 +6,9 @@ import argparse
 from collections.abc import Sequence
 
 from axiomrunner.config import ConfigurationError, load_options
+from axiomrunner.doctor import run_doctor
+from axiomrunner.errors import InvalidChallengeError, UnsupportedLanguageError
+from axiomrunner.ingest import load_problem
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -32,11 +35,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error(str(error))
 
     if args.command == "doctor":
-        print(f"configured model: {options.model}")
-        print("runtime checks are introduced in the ingestion slice")
-        return 0
+        diagnostics = run_doctor(options)
+        for diagnostic in diagnostics:
+            label = "PASS" if diagnostic.ok else "FAIL"
+            print(f"{label} {diagnostic.name}: {diagnostic.detail}")
+        return 0 if all(item.ok for item in diagnostics) else 3
     if args.command == "benchmark":
         print(f"benchmark pipeline is not implemented: {args.path}")
         return 4
-    print(f"solve pipeline is not implemented: {args.problem}")
+    try:
+        problem = load_problem(args.problem)
+    except UnsupportedLanguageError as error:
+        print(f"unsupported: {error}")
+        return 2
+    except InvalidChallengeError as error:
+        print(f"invalid: {error}")
+        return 2
+    print(f"solve pipeline is not implemented: {problem.problem_id}")
     return 4
