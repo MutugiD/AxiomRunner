@@ -11,6 +11,9 @@ engineering documentation.
 - [System architecture](architecture.md)
 - [Runtime workflows](workflows.md)
 - [Security and sandbox boundary](security.md)
+- [Product requirements](product-requirements.md)
+- [Feature catalogue and roadmap](features.md)
+- [Acceptance and observability](acceptance.md)
 
 Detailed architecture, product requirements, features, operations, and
 benchmark evidence are added in their corresponding sequential changes.
