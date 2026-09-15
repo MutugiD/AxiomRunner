@@ -43,3 +43,4 @@ files = ["src", "tests"]
 [tool.pytest.ini_options]
 addopts = "--strict-config --strict-markers --cov=axiomrunner --cov-report=term-missing --cov-fail-under=90"
 testpaths = ["tests"]
+markers = ["docker: requires a healthy local Docker engine"]
