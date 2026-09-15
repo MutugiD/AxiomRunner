@@ -71,6 +71,7 @@ class OllamaClient:
             "model": self.model,
             "messages": [{"role": item.role, "content": item.content} for item in messages],
             "stream": False,
+            "think": False,
             "format": to_json_value(dict(schema)),
             "options": {"temperature": temperature, "seed": self.seed},
             "keep_alive": "10m",

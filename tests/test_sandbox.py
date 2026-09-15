@@ -1,6 +1,15 @@
 import pytest
 
-from axiomrunner.domain import Candidate, ChallengeProblem, CheckStatus, SandboxLimits
+from axiomrunner.domain import (
+    CallSpec,
+    Candidate,
+    ChallengeProblem,
+    CheckStatus,
+    SandboxLimits,
+    VerificationCase,
+    VerificationKind,
+    VerificationSuite,
+)
 from axiomrunner.errors import RuntimeUnavailableError
 from axiomrunner.sandbox import DockerSandbox, ProcessResult, _run_process
 
@@ -41,6 +50,36 @@ def test_sandbox_records_candidate_failure() -> None:
 def test_sandbox_rejects_invalid_harness_output() -> None:
     sandbox = DockerSandbox(SandboxLimits(), runner=lambda *_: ProcessResult(0, "bad", ""))
     assert sandbox.verify(candidate(), problem()).status is CheckStatus.INCONCLUSIVE
+
+
+def test_adversarial_suite_returns_per_case_evidence() -> None:
+    output = (
+        '{"results":['
+        '{"passed":true,"counterexample":{"args":[0],"kwargs":{}}},'
+        '{"passed":false,"counterexample":{"args":[1],"kwargs":{}}}'
+        "]}"
+    )
+    sandbox = DockerSandbox(SandboxLimits(), runner=lambda *_: ProcessResult(0, output, ""))
+    suite = VerificationSuite(
+        (
+            VerificationCase("zero", VerificationKind.BOUNDARY, CallSpec((0,)), 0),
+            VerificationCase("one", VerificationKind.PROPERTY, CallSpec((1,)), 2),
+        )
+    )
+    checks = sandbox.verify_suite(candidate(), problem(), suite)
+    assert [check.check_type for check in checks] == ["boundary", "property"]
+    assert [check.status for check in checks] == [CheckStatus.PASSED, CheckStatus.FAILED]
+    assert checks[1].details["counterexample"] == {"args": [1], "kwargs": {}}
+
+
+def test_adversarial_suite_requires_oracle_program() -> None:
+    suite = VerificationSuite(
+        (VerificationCase("oracle", VerificationKind.ORACLE, CallSpec((1,))),)
+    )
+    with pytest.raises(ValueError, match="oracle source"):
+        DockerSandbox(SandboxLimits(), runner=lambda *_: ProcessResult(0, "", "")).verify_suite(
+            candidate(), problem(), suite
+        )
 
 
 def test_default_runner_maps_timeout(monkeypatch: pytest.MonkeyPatch) -> None:

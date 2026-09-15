@@ -2,7 +2,18 @@ import os
 
 import pytest
 
-from axiomrunner.domain import Candidate, ChallengeProblem, CheckStatus, JsonValue, SandboxLimits
+from axiomrunner.domain import (
+    CallSpec,
+    Candidate,
+    ChallengeProblem,
+    CheckStatus,
+    Comparison,
+    JsonValue,
+    SandboxLimits,
+    VerificationCase,
+    VerificationKind,
+    VerificationSuite,
+)
 from axiomrunner.sandbox import DockerSandbox
 
 pytestmark = [
@@ -52,3 +63,32 @@ def test_real_container_has_no_network() -> None:
 def test_real_container_enforces_host_timeout() -> None:
     source = "def answer():\n    while True:\n        pass\n"
     assert verify(source, args=[], expected=None, timeout=1.0) is CheckStatus.FAILED
+
+
+def test_real_container_executes_all_independent_check_kinds() -> None:
+    candidate = Candidate("suite", "square", "def answer(x):\n    return x * x\n")
+    problem = ChallengeProblem("suite", "python", "Square x.", "answer", (), 30)
+    suite = VerificationSuite(
+        (
+            VerificationCase("zero", VerificationKind.BOUNDARY, CallSpec((0,)), 0),
+            VerificationCase("small", VerificationKind.ORACLE, CallSpec((3,))),
+            VerificationCase(
+                "nonnegative",
+                VerificationKind.PROPERTY,
+                CallSpec((-2,)),
+                0,
+                Comparison.GREATER_EQUAL,
+            ),
+            VerificationCase(
+                "sign",
+                VerificationKind.METAMORPHIC,
+                CallSpec((2,)),
+                followup=CallSpec((-2,)),
+            ),
+        ),
+        oracle_source="def reference(x):\n    return x * x\n",
+        oracle_entrypoint="reference",
+    )
+    checks = DockerSandbox(SandboxLimits()).verify_suite(candidate, problem, suite)
+    assert len(checks) == 4
+    assert all(check.status is CheckStatus.PASSED for check in checks)

@@ -13,6 +13,8 @@ content local.
 
 Use Ollama through a loopback-only HTTP endpoint. Default to `qwen3:8b` and use
 `qwen3:1.7b` only for development smoke tests. Reject non-loopback endpoints.
+Disable reasoning-trace generation for schema-constrained roles so the finite
+deadline is spent on the validated response rather than an unused trace.
 
 ## Consequences
 
