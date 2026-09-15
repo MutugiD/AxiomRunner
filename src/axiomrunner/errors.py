@@ -17,5 +17,9 @@ class RuntimeUnavailableError(AxiomRunnerError):
     """Raised when a required local runtime is unavailable."""
 
 
+class ModelProtocolError(AxiomRunnerError):
+    """Raised when a model response violates its required schema."""
+
+
 class OutputWriteError(AxiomRunnerError, OSError):
     """Raised when an output cannot be published atomically."""
