@@ -40,6 +40,11 @@ The latest measured outcome is recorded in
 CPU run did not meet the Python-corpus release gate, so `v0.1.0` remains
 untagged.
 
+The next acceptance run uses the
+[Google Colab T4 runbook](colab-t4-runbook.md). A release decision requires the
+downloaded evidence bundle from that run; a GPU allocation by itself does not
+change the gate.
+
 ## Event model
 
 Every run has a random identifier unrelated to problem content. Structured
