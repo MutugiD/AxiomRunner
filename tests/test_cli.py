@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from axiomrunner.benchmark import BenchmarkRecord, BenchmarkResult
 from axiomrunner.cli import main
 from axiomrunner.config import ConfigurationError
 from axiomrunner.doctor import Diagnostic
@@ -34,8 +35,14 @@ def test_configuration_error_is_cli_usage_error(monkeypatch: pytest.MonkeyPatch)
     assert raised.value.code == 2
 
 
-def test_unimplemented_benchmark_returns_no_candidate(capsys: object) -> None:
-    assert main(["benchmark", "samples"]) == 4
+def test_benchmark_reports_success(monkeypatch: pytest.MonkeyPatch, capsys: object) -> None:
+    monkeypatch.setattr(
+        "axiomrunner.cli.benchmark_path",
+        lambda *_, **__: BenchmarkResult(
+            (BenchmarkRecord("one.json", "one", "success", True, 1.0),), 1.0
+        ),
+    )
+    assert main(["benchmark", "samples"]) == 0
 
 
 def test_solve_writes_solution_and_report(

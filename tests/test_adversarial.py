@@ -179,6 +179,27 @@ def test_valid_independent_oracle_reaches_sandbox() -> None:
     assert checks[0].status is CheckStatus.PASSED
 
 
+def test_invalid_oracle_does_not_discard_safe_boundary_cases() -> None:
+    suite = VerificationSuite(
+        (
+            case(VerificationKind.ORACLE),
+            VerificationCase("boundary", VerificationKind.BOUNDARY, CallSpec((1,)), 1),
+        ),
+        oracle_source="def reference(x): return x",
+        oracle_entrypoint="reference",
+    )
+    verifier = AdversarialVerifier(FailingStatic(), PassingSandbox())  # type: ignore[arg-type]
+    checks = verifier.verify(
+        Candidate("one", "strategy", "def answer(x): return x"),
+        ChallengeProblem("one", "python", "identity", "answer", (), 300),
+        suite,
+    )
+    assert [check.status for check in checks] == [
+        CheckStatus.INCONCLUSIVE,
+        CheckStatus.PASSED,
+    ]
+
+
 def test_suite_rejects_empty_too_large_and_unexpected_followup() -> None:
     with pytest.raises(ValueError, match="at least one"):
         validate_suite(VerificationSuite(()))

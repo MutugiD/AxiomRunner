@@ -75,6 +75,36 @@ def test_all_reasoning_roles_are_schema_constrained() -> None:
     assert len(candidate.candidate_id) == 16
 
 
+def test_combined_planning_keeps_tests_candidate_independent() -> None:
+    subject = engine(
+        {
+            "summary": "Compute one.",
+            "invariants": ["Result is one"],
+            "traps": ["No I/O"],
+            "complexity_target": "O(1)",
+            "cases": [
+                {
+                    "case_id": "constant",
+                    "args": [],
+                    "kwargs": {},
+                    "expected_return": {"result": 1},
+                }
+            ],
+            "strategies": [
+                {
+                    "strategy_id": "constant",
+                    "approach": "Return one",
+                    "time_complexity": "O(1)",
+                }
+            ],
+        }
+    )
+    planning = subject.plan(problem(), 1, 5)
+    assert planning.analysis.summary == "Compute one."
+    assert planning.verification_suite.cases[0].expected == 1
+    assert planning.strategies[0].strategy_id == "constant"
+
+
 def test_strategy_ids_must_be_unique() -> None:
     duplicate = {
         "strategy_id": "same",

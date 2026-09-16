@@ -73,21 +73,13 @@ class SolveOrchestrator:
         cutoffs: list[str] = []
         run_id = self.run_id_factory()
         try:
-            analysis = self._model_call(
-                lambda timeout: self.engine.analyze(problem, timeout), budget
-            )
-            design = self._model_call(
-                lambda timeout: self.engine.design_tests(problem, timeout), budget
-            )
-            suite = self._model_call(
-                lambda timeout: self.engine.verification_suite(problem, design, timeout), budget
-            )
-            strategies = self._model_call(
-                lambda timeout: self.engine.strategies(
-                    problem, analysis, options.candidate_limit, timeout
-                ),
+            planning = self._model_call(
+                lambda timeout: self.engine.plan(problem, options.candidate_limit, timeout),
                 budget,
             )
+            analysis = planning.analysis
+            suite = planning.verification_suite
+            strategies = planning.strategies
             repair = RepairCoordinator(self.engine, repository, budget, options.repair_limit)
             for strategy in strategies[: options.candidate_limit]:
                 if not budget.can_start_candidate():

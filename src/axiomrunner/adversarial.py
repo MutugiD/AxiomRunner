@@ -62,21 +62,26 @@ class AdversarialVerifier:
                 check for check in oracle_checks if check.status is not CheckStatus.PASSED
             )
             if failures:
-                return (
-                    CheckResult(
-                        "oracle_policy",
-                        "independent",
-                        CheckStatus.INCONCLUSIVE,
-                        sum(check.duration_s for check in oracle_checks),
-                        mandatory=False,
-                        details={
-                            "failures": [
-                                {"check": check.check_type, "details": check.details}
-                                for check in failures
-                            ]
-                        },
-                    ),
+                policy = CheckResult(
+                    "oracle_policy",
+                    "independent",
+                    CheckStatus.INCONCLUSIVE,
+                    sum(check.duration_s for check in oracle_checks),
+                    mandatory=False,
+                    details={
+                        "failures": [
+                            {"check": check.check_type, "details": check.details}
+                            for check in failures
+                        ]
+                    },
                 )
+                safe_cases = tuple(
+                    case for case in suite.cases if case.kind is not VerificationKind.ORACLE
+                )
+                if not safe_cases:
+                    return (policy,)
+                safe_suite = VerificationSuite(safe_cases)
+                return (policy, *self.sandbox.verify_suite(candidate, problem, safe_suite))
         return self.sandbox.verify_suite(candidate, problem, suite)
 
 

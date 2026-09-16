@@ -29,6 +29,13 @@ def test_client_sends_schema_and_records_metrics() -> None:
     assert captured["timeout"] == 3.0
     assert captured["payload"]["format"] == {"type": "object"}  # type: ignore[index]
     assert captured["payload"]["think"] is False  # type: ignore[index]
+    assert captured["payload"]["options"]["num_predict"] == 2048  # type: ignore[index]
+    assert (
+        "Return only JSON matching this schema"
+        in captured["payload"]["messages"][0][  # type: ignore[index]
+            "content"
+        ]
+    )
 
 
 @pytest.mark.parametrize(

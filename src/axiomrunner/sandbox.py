@@ -221,6 +221,10 @@ class DockerSandbox:
                     "case_id": case.case_id,
                     "counterexample": outcome.get("counterexample"),
                 }
+                if "actual" in outcome:
+                    details["actual"] = outcome["actual"]
+                if "expected" in outcome:
+                    details["expected"] = outcome["expected"]
                 if "error" in outcome:
                     details["error"] = outcome["error"]
             checks.append(
@@ -356,6 +360,14 @@ def invoke(function, call):
     return function(*call.get("args", []), **call.get("kwargs", {}))
 
 
+def observable(value):
+    try:
+        json.dumps(value)
+        return value
+    except (TypeError, ValueError):
+        return {"type": type(value).__name__}
+
+
 def main():
     with open("/work/suite.json", encoding="utf-8") as stream:
         suite = json.load(stream)
@@ -375,7 +387,12 @@ def main():
             else:
                 expected = case.get("expected")
             passed = compare(actual, expected, case["comparison"])
-            results.append({"passed": passed, "counterexample": counterexample})
+            results.append({
+                "passed": passed,
+                "counterexample": counterexample,
+                "actual": observable(actual),
+                "expected": observable(expected),
+            })
         except Exception as error:
             results.append({
                 "passed": False,

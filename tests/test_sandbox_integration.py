@@ -18,7 +18,7 @@ from axiomrunner.domain import (
     VerificationKind,
     VerificationSuite,
 )
-from axiomrunner.reasoning import ProblemAnalysis, Strategy
+from axiomrunner.reasoning import PlanningBundle, ProblemAnalysis, Strategy
 from axiomrunner.reasoning import TestDesign as Design
 from axiomrunner.sandbox import DockerSandbox
 from axiomrunner.solver import SolveOrchestrator
@@ -107,6 +107,15 @@ class IntegrationEngine:
     def analyze(self, problem: ChallengeProblem, timeout_s: float) -> ProblemAnalysis:
         del problem, timeout_s
         return ProblemAnalysis("square", (), (), (), (), "O(1)", (), ModelMetrics(0))
+
+    def plan(
+        self, problem: ChallengeProblem, strategy_limit: int, timeout_s: float
+    ) -> PlanningBundle:
+        analysis = self.analyze(problem, timeout_s)
+        design = self.design_tests(problem, timeout_s)
+        suite = self.verification_suite(problem, design, timeout_s)
+        strategies = self.strategies(problem, analysis, strategy_limit, timeout_s)
+        return PlanningBundle(analysis, suite, strategies)
 
     def design_tests(self, problem: ChallengeProblem, timeout_s: float) -> Design:
         del problem, timeout_s
