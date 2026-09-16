@@ -4,11 +4,17 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Sequence
+from dataclasses import replace
+from pathlib import Path
 
 from axiomrunner.config import ConfigurationError, load_options
 from axiomrunner.doctor import run_doctor
-from axiomrunner.errors import InvalidChallengeError, UnsupportedLanguageError
+from axiomrunner.domain import SolveStatus
+from axiomrunner.errors import InvalidChallengeError, OutputWriteError, UnsupportedLanguageError
 from axiomrunner.ingest import load_problem
+from axiomrunner.output import atomic_write_text
+from axiomrunner.reporting import write_report
+from axiomrunner.solver import solve
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -51,5 +57,44 @@ def main(argv: Sequence[str] | None = None) -> int:
     except InvalidChallengeError as error:
         print(f"invalid: {error}")
         return 2
-    print(f"solve pipeline is not implemented: {problem.problem_id}")
-    return 4
+    if args.report and Path(args.output).resolve() == Path(args.report).resolve():
+        print("invalid: output and report paths must be different")
+        return 2
+    result = solve(problem, options)
+    if result.successful:
+        if result.solution_source is None:
+            result = replace(
+                result,
+                status=SolveStatus.OUTPUT_FAILURE,
+                error="successful solve did not contain source",
+            )
+        else:
+            try:
+                atomic_write_text(args.output, result.solution_source)
+            except OutputWriteError as error:
+                result = replace(result, status=SolveStatus.OUTPUT_FAILURE, error=str(error))
+    if args.report:
+        try:
+            write_report(args.report, problem, options, result)
+        except OutputWriteError as error:
+            print(f"output failure: {error}")
+            return 5
+    if result.successful:
+        print(
+            f"solved {problem.problem_id} with {result.selected_candidate_id} "
+            f"in {result.elapsed_s:.2f}s"
+        )
+    else:
+        print(f"{result.status.value}: {result.error or 'solve failed'}")
+    return _exit_code(result.status)
+
+
+def _exit_code(status: SolveStatus) -> int:
+    return {
+        SolveStatus.SUCCESS: 0,
+        SolveStatus.INVALID_INPUT: 2,
+        SolveStatus.UNSUPPORTED_LANGUAGE: 2,
+        SolveStatus.RUNTIME_UNAVAILABLE: 3,
+        SolveStatus.NO_VIABLE_CANDIDATE: 4,
+        SolveStatus.OUTPUT_FAILURE: 5,
+    }[status]

@@ -2,6 +2,7 @@ import os
 
 import pytest
 
+from axiomrunner.adversarial import AdversarialVerifier, Counterexample
 from axiomrunner.domain import (
     CallSpec,
     Candidate,
@@ -9,12 +10,20 @@ from axiomrunner.domain import (
     CheckStatus,
     Comparison,
     JsonValue,
+    ModelMetrics,
     SandboxLimits,
+    SolveOptions,
+    SolveStatus,
     VerificationCase,
     VerificationKind,
     VerificationSuite,
 )
+from axiomrunner.reasoning import ProblemAnalysis, Strategy
+from axiomrunner.reasoning import TestDesign as Design
 from axiomrunner.sandbox import DockerSandbox
+from axiomrunner.solver import SolveOrchestrator
+from axiomrunner.static_validation import StaticVerifier
+from axiomrunner.verification import CandidateVerifier
 
 pytestmark = [
     pytest.mark.docker,
@@ -92,3 +101,69 @@ def test_real_container_executes_all_independent_check_kinds() -> None:
     checks = DockerSandbox(SandboxLimits()).verify_suite(candidate, problem, suite)
     assert len(checks) == 4
     assert all(check.status is CheckStatus.PASSED for check in checks)
+
+
+class IntegrationEngine:
+    def analyze(self, problem: ChallengeProblem, timeout_s: float) -> ProblemAnalysis:
+        del problem, timeout_s
+        return ProblemAnalysis("square", (), (), (), (), "O(1)", (), ModelMetrics(0))
+
+    def design_tests(self, problem: ChallengeProblem, timeout_s: float) -> Design:
+        del problem, timeout_s
+        return Design(("two",), (), (), "direct", ModelMetrics(0))
+
+    def verification_suite(
+        self, problem: ChallengeProblem, design: Design, timeout_s: float
+    ) -> VerificationSuite:
+        del problem, design, timeout_s
+        return VerificationSuite(
+            (VerificationCase("two", VerificationKind.BOUNDARY, CallSpec((2,)), 4),)
+        )
+
+    def strategies(
+        self,
+        problem: ChallengeProblem,
+        analysis: ProblemAnalysis,
+        limit: int,
+        timeout_s: float,
+    ) -> tuple[Strategy, ...]:
+        del problem, analysis, limit, timeout_s
+        return (Strategy("square", "Square", "multiply", "O(1)", "O(1)", ()),)
+
+    def generate(
+        self,
+        problem: ChallengeProblem,
+        analysis: ProblemAnalysis,
+        strategy: Strategy,
+        timeout_s: float,
+    ) -> Candidate:
+        del problem, analysis, strategy, timeout_s
+        return Candidate("candidate", "square", "def square(x):\n    return x * x\n")
+
+    def repair(
+        self,
+        problem: ChallengeProblem,
+        analysis: ProblemAnalysis,
+        parent: Candidate,
+        counterexamples: tuple[Counterexample, ...],
+        timeout_s: float,
+        failures: tuple[str, ...] = (),
+    ) -> Candidate:
+        del problem, analysis, parent, counterexamples, timeout_s, failures
+        raise AssertionError("valid fixture must not repair")
+
+
+def test_real_end_to_end_orchestrator_uses_docker_evidence() -> None:
+    static = StaticVerifier()
+    sandbox = DockerSandbox(SandboxLimits())
+    orchestrator = SolveOrchestrator(
+        IntegrationEngine(),  # type: ignore[arg-type]
+        CandidateVerifier(static, sandbox),
+        AdversarialVerifier(static, sandbox),
+        static,
+        run_id_factory=lambda: "docker-run",
+    )
+    challenge = ChallengeProblem("square", "python", "Square x.", "square", (), 30)
+    result = orchestrator.solve(challenge, SolveOptions(candidate_limit=1, repair_limit=0))
+    assert result.status is SolveStatus.SUCCESS
+    assert result.solution_source == "def square(x):\n    return x * x\n"

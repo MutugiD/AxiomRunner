@@ -8,9 +8,27 @@ The project is being delivered documentation-first. Start with the
 
 ## Status
 
-Architecture and product definition precede runtime implementation. Python is
-the only supported challenge language; hosted and paid model APIs are out of
-scope.
+AxiomRunner supports Python function challenges through a local Ollama model
+and a resource-limited Docker verification sandbox. Hosted model APIs and Rust
+challenge generation are out of scope.
+
+## Usage
+
+Check local prerequisites:
+
+```text
+uv run axiomrunner doctor
+```
+
+Solve one challenge and retain a redacted evidence report:
+
+```text
+uv run axiomrunner solve PROBLEM.json --output SOLUTION.py --report REPORT.json
+```
+
+Exit code `0` means success, `2` invalid or unsupported input, `3` unavailable
+local runtime, `4` no verified candidate, and `5` output publication failure.
+Candidate code is never executed on the host.
 
 ## Development
 

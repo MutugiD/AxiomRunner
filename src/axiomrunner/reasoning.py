@@ -23,17 +23,18 @@ from axiomrunner.domain import (
 from axiomrunner.errors import ModelProtocolError
 from axiomrunner.ollama import ChatMessage, OllamaClient
 
-STRING_ARRAY: dict[str, JsonValue] = {"type": "array", "items": {"type": "string"}}
+NONEMPTY_STRING: dict[str, JsonValue] = {"type": "string", "minLength": 1}
+STRING_ARRAY: dict[str, JsonValue] = {"type": "array", "items": NONEMPTY_STRING}
 
 ANALYSIS_SCHEMA: dict[str, JsonValue] = {
     "type": "object",
     "properties": {
-        "summary": {"type": "string"},
+        "summary": NONEMPTY_STRING,
         "constraints": STRING_ARRAY,
         "invariants": STRING_ARRAY,
         "ambiguities": STRING_ARRAY,
         "traps": STRING_ARRAY,
-        "complexity_target": {"type": "string"},
+        "complexity_target": NONEMPTY_STRING,
         "test_ideas": STRING_ARRAY,
     },
     "required": [
@@ -54,7 +55,7 @@ TEST_DESIGN_SCHEMA: dict[str, JsonValue] = {
         "boundary_cases": STRING_ARRAY,
         "properties": STRING_ARRAY,
         "metamorphic_relations": STRING_ARRAY,
-        "oracle_plan": {"type": "string"},
+        "oracle_plan": NONEMPTY_STRING,
     },
     "required": ["boundary_cases", "properties", "metamorphic_relations", "oracle_plan"],
     "additionalProperties": False,
@@ -68,11 +69,11 @@ STRATEGIES_SCHEMA: dict[str, JsonValue] = {
             "items": {
                 "type": "object",
                 "properties": {
-                    "strategy_id": {"type": "string"},
-                    "title": {"type": "string"},
-                    "approach": {"type": "string"},
-                    "time_complexity": {"type": "string"},
-                    "space_complexity": {"type": "string"},
+                    "strategy_id": NONEMPTY_STRING,
+                    "title": NONEMPTY_STRING,
+                    "approach": NONEMPTY_STRING,
+                    "time_complexity": NONEMPTY_STRING,
+                    "space_complexity": NONEMPTY_STRING,
                     "risks": STRING_ARRAY,
                 },
                 "required": [
@@ -95,8 +96,8 @@ STRATEGIES_SCHEMA: dict[str, JsonValue] = {
 CANDIDATE_SCHEMA: dict[str, JsonValue] = {
     "type": "object",
     "properties": {
-        "source": {"type": "string"},
-        "complexity": {"type": "string"},
+        "source": NONEMPTY_STRING,
+        "complexity": NONEMPTY_STRING,
         "assumptions": STRING_ARRAY,
     },
     "required": ["source", "complexity", "assumptions"],
@@ -115,7 +116,7 @@ VERIFICATION_SUITE_SCHEMA: dict[str, JsonValue] = {
             "items": {
                 "type": "object",
                 "properties": {
-                    "case_id": {"type": "string"},
+                    "case_id": NONEMPTY_STRING,
                     "kind": {
                         "type": "string",
                         "enum": [item.value for item in VerificationKind],
@@ -279,7 +280,10 @@ class ReasoningEngine:
         if bool(oracle_source) != bool(oracle_entrypoint):
             raise ModelProtocolError("oracle source and entrypoint must both be supplied")
         suite = VerificationSuite(cases, oracle_source, oracle_entrypoint)
-        validate_suite(suite)
+        try:
+            validate_suite(suite)
+        except ValueError as error:
+            raise ModelProtocolError(f"invalid verification suite: {error}") from error
         return suite
 
     def generate(
@@ -311,9 +315,10 @@ class ReasoningEngine:
         parent: Candidate,
         counterexamples: tuple[Counterexample, ...],
         timeout_s: float,
+        failures: tuple[str, ...] = (),
     ) -> Candidate:
-        if not counterexamples:
-            raise ValueError("repair requires at least one counterexample")
+        if not counterexamples and not failures:
+            raise ValueError("repair requires a counterexample or failure summary")
         examples = [{"args": list(item.args), "kwargs": item.kwargs} for item in counterexamples]
         task = (
             "Repair the parent implementation using only the observed counterexamples. Preserve "
@@ -322,6 +327,7 @@ class ReasoningEngine:
             f"Invariants: {list(analysis.invariants)}\n"
             "<REPAIR_DATA>\n"
             f"COUNTEREXAMPLES: {json.dumps(examples, ensure_ascii=False)}\n"
+            f"FAILURES: {json.dumps(list(failures), ensure_ascii=False)}\n"
             f"PARENT_SOURCE:\n{parent.source}\n"
             "</REPAIR_DATA>"
         )
