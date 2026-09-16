@@ -26,9 +26,18 @@ Solve one challenge and retain a redacted evidence report:
 uv run axiomrunner solve PROBLEM.json --output SOLUTION.py --report REPORT.json
 ```
 
+Benchmark a corpus without retaining candidate source:
+
+```text
+uv run axiomrunner benchmark PATH --report BENCHMARK.json
+```
+
 Exit code `0` means success, `2` invalid or unsupported input, `3` unavailable
 local runtime, `4` no verified candidate, and `5` output publication failure.
 Candidate code is never executed on the host.
+
+The latest CPU-only `qwen3:8b` corpus run did not meet the `v0.1.0` release
+gate; see the [benchmark evidence](documentation/benchmark-methodology.md).
 
 ## Development
 

@@ -6,17 +6,16 @@
 sandbox, and a `SolveOrchestrator`. The orchestrator owns the monotonic budget,
 run identifier, candidate repository, and phase transitions for that request.
 
-1. Analyze the normalized challenge.
-2. Design tests without candidate source.
-3. Convert the design into a bounded JSON-only verification suite.
-4. Produce distinct strategies up to the candidate limit.
-5. Generate, statically inspect, compile, and sandbox each candidate.
-6. Run boundary, oracle, property, and metamorphic checks.
-7. Minimize observed failures and create bounded child repairs.
-8. Rank only candidates with mandatory passes and at least one independent
+1. Produce a compact, candidate-independent plan containing analysis,
+   strategies, and exact executable boundary cases.
+2. Generate, statically inspect, compile, and sandbox each candidate.
+3. Run the compact cases plus any configured oracle, property, or metamorphic
+   checks.
+4. Minimize observed failures and create bounded child repairs.
+5. Rank only candidates with mandatory passes and at least one independent
    behavioral pass.
-9. Statically revalidate the selected candidate in the finalization reserve.
-10. Return source and evidence to the CLI for atomic publication.
+6. Statically revalidate the selected candidate in the finalization reserve.
+7. Return source and evidence to the CLI for atomic publication.
 
 Malformed structured model responses receive one retry. Model/runtime failures
 return runtime-unavailable status with partial evidence. Candidate and repair

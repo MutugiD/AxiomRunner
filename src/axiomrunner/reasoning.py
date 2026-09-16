@@ -24,12 +24,17 @@ from axiomrunner.errors import ModelProtocolError
 from axiomrunner.ollama import ChatMessage, OllamaClient
 
 NONEMPTY_STRING: dict[str, JsonValue] = {"type": "string", "minLength": 1}
-STRING_ARRAY: dict[str, JsonValue] = {"type": "array", "items": NONEMPTY_STRING}
+SHORT_STRING: dict[str, JsonValue] = {"type": "string", "minLength": 1, "maxLength": 240}
+STRING_ARRAY: dict[str, JsonValue] = {
+    "type": "array",
+    "items": SHORT_STRING,
+    "maxItems": 3,
+}
 
 ANALYSIS_SCHEMA: dict[str, JsonValue] = {
     "type": "object",
     "properties": {
-        "summary": NONEMPTY_STRING,
+        "summary": SHORT_STRING,
         "constraints": STRING_ARRAY,
         "invariants": STRING_ARRAY,
         "ambiguities": STRING_ARRAY,
@@ -66,6 +71,7 @@ STRATEGIES_SCHEMA: dict[str, JsonValue] = {
     "properties": {
         "strategies": {
             "type": "array",
+            "maxItems": 3,
             "items": {
                 "type": "object",
                 "properties": {
@@ -96,7 +102,11 @@ STRATEGIES_SCHEMA: dict[str, JsonValue] = {
 CANDIDATE_SCHEMA: dict[str, JsonValue] = {
     "type": "object",
     "properties": {
-        "source": NONEMPTY_STRING,
+        "source": {
+            "type": "string",
+            "minLength": 20,
+            "description": "Complete Python source defining the requested function",
+        },
         "complexity": NONEMPTY_STRING,
         "assumptions": STRING_ARRAY,
     },
@@ -112,7 +122,7 @@ VERIFICATION_SUITE_SCHEMA: dict[str, JsonValue] = {
         "cases": {
             "type": "array",
             "minItems": 1,
-            "maxItems": 64,
+            "maxItems": 4,
             "items": {
                 "type": "object",
                 "properties": {
@@ -123,7 +133,11 @@ VERIFICATION_SUITE_SCHEMA: dict[str, JsonValue] = {
                     },
                     "args": {"type": "array", "items": {}},
                     "kwargs": {"type": "object"},
-                    "expected": {},
+                    "expected": {
+                        "description": (
+                            "Exact JSON return value for boundary cases; null for oracle cases"
+                        )
+                    },
                     "comparison": {
                         "type": "string",
                         "enum": [item.value for item in Comparison],
@@ -146,6 +160,61 @@ VERIFICATION_SUITE_SCHEMA: dict[str, JsonValue] = {
         },
     },
     "required": ["oracle_source", "oracle_entrypoint", "cases"],
+    "additionalProperties": False,
+}
+
+PLANNING_SCHEMA: dict[str, JsonValue] = {
+    "type": "object",
+    "properties": {
+        "summary": SHORT_STRING,
+        "invariants": STRING_ARRAY,
+        "traps": STRING_ARRAY,
+        "complexity_target": SHORT_STRING,
+        "cases": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 2,
+            "items": {
+                "type": "object",
+                "properties": {
+                    "case_id": SHORT_STRING,
+                    "args": {"type": "array", "items": {}},
+                    "kwargs": {"type": "object"},
+                    "expected_return": {},
+                },
+                "required": [
+                    "case_id",
+                    "args",
+                    "kwargs",
+                    "expected_return",
+                ],
+                "additionalProperties": False,
+            },
+        },
+        "strategies": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 3,
+            "items": {
+                "type": "object",
+                "properties": {
+                    "strategy_id": SHORT_STRING,
+                    "approach": SHORT_STRING,
+                    "time_complexity": SHORT_STRING,
+                },
+                "required": ["strategy_id", "approach", "time_complexity"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": [
+        "summary",
+        "invariants",
+        "traps",
+        "complexity_target",
+        "cases",
+        "strategies",
+    ],
     "additionalProperties": False,
 }
 
@@ -181,6 +250,13 @@ class Strategy:
     risks: tuple[str, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class PlanningBundle:
+    analysis: ProblemAnalysis
+    verification_suite: VerificationSuite
+    strategies: tuple[Strategy, ...]
+
+
 class ReasoningEngine:
     """Keep model roles separate and validate every reply semantically."""
 
@@ -205,6 +281,41 @@ class ReasoningEngine:
             test_ideas=_strings(content, "test_ideas"),
             metrics=reply.metrics,
         )
+
+    def plan(
+        self,
+        problem: ChallengeProblem,
+        strategy_limit: int,
+        timeout_s: float,
+    ) -> PlanningBundle:
+        """Produce all candidate-independent planning in one local inference."""
+        task = (
+            f"Analyze the contract and propose up to {strategy_limit} distinct strategies. "
+            "Independently design at most two exact boundary cases. Tests must "
+            "not assume any candidate implementation. Boundary cases require an expected result. "
+            "expected_return is the direct function return value with no result/output wrapper. "
+            "It must be exact JSON, never prose or an expression. Be extremely concise."
+        )
+        reply = self.client.chat(
+            _messages("algorithm analyst and independent test planner", problem, task),
+            PLANNING_SCHEMA,
+            timeout_s=timeout_s,
+            temperature=0.0,
+            max_tokens=450,
+        )
+        analysis = ProblemAnalysis(
+            summary=_string(reply.content, "summary"),
+            constraints=(),
+            invariants=_strings(reply.content, "invariants"),
+            ambiguities=(),
+            traps=_strings(reply.content, "traps"),
+            complexity_target=_string(reply.content, "complexity_target"),
+            test_ideas=(),
+            metrics=reply.metrics,
+        )
+        suite = _compact_verification_suite(reply.content)
+        strategies = _compact_strategies(reply.content, strategy_limit)
+        return PlanningBundle(analysis, suite, strategies)
 
     def design_tests(self, problem: ChallengeProblem, timeout_s: float) -> TestDesign:
         reply = self.client.chat(
@@ -294,8 +405,9 @@ class ReasoningEngine:
         timeout_s: float,
     ) -> Candidate:
         task = (
-            "Return only schema fields. Source must define the exact entrypoint, use only the "
-            "Python standard library, perform no I/O, and not mutate caller-owned inputs. "
+            f"The source field must contain a complete Python module beginning with a definition "
+            f"of {problem.entrypoint}; never put the problem ID or prose in source. Use only the "
+            "Python standard library, perform no I/O, and do not mutate caller-owned inputs. "
             f"Strategy: {strategy.approach}. Invariants: {list(analysis.invariants)}"
         )
         reply = self.client.chat(
@@ -303,6 +415,7 @@ class ReasoningEngine:
             CANDIDATE_SCHEMA,
             timeout_s=timeout_s,
             temperature=0.1,
+            max_tokens=3000,
         )
         source = _string(reply.content, "source")
         identifier = sha256(f"{strategy.strategy_id}\0{source}".encode()).hexdigest()[:16]
@@ -336,6 +449,7 @@ class ReasoningEngine:
             CANDIDATE_SCHEMA,
             timeout_s=timeout_s,
             temperature=0.0,
+            max_tokens=3000,
         )
         source = _string(reply.content, "source")
         revision = parent.revision + 1
@@ -386,6 +500,74 @@ def _optional_string(content: dict[str, JsonValue], name: str) -> str | None:
     if not isinstance(value, str):
         raise ModelProtocolError(f"{name} must be a string")
     return value.strip() or None
+
+
+def _compact_verification_suite(content: dict[str, JsonValue]) -> VerificationSuite:
+    raw_cases = content.get("cases")
+    if not isinstance(raw_cases, list):
+        raise ModelProtocolError("cases must be an array")
+    cases: list[VerificationCase] = []
+    for raw_case in raw_cases:
+        if not isinstance(raw_case, dict):
+            raise ModelProtocolError("each verification case must be an object")
+        if "expected_return" not in raw_case:
+            raise ModelProtocolError("verification case must include expected_return")
+        args = raw_case.get("args")
+        kwargs = raw_case.get("kwargs")
+        if not isinstance(args, list) or not isinstance(kwargs, dict):
+            raise ModelProtocolError("case calls must contain array args and object kwargs")
+        cases.append(
+            VerificationCase(
+                _string(raw_case, "case_id"),
+                VerificationKind.BOUNDARY,
+                CallSpec(
+                    tuple(to_json_value(item) for item in args),
+                    _json_mapping(kwargs),
+                ),
+                _direct_return(raw_case.get("expected_return")),
+            )
+        )
+    suite = VerificationSuite(tuple(cases))
+    try:
+        validate_suite(suite)
+    except ValueError as error:
+        raise ModelProtocolError(f"invalid verification suite: {error}") from error
+    return suite
+
+
+def _compact_strategies(content: dict[str, JsonValue], limit: int) -> tuple[Strategy, ...]:
+    raw_items = content.get("strategies")
+    if not isinstance(raw_items, list):
+        raise ModelProtocolError("strategies must be an array")
+    strategies: list[Strategy] = []
+    for raw_item in raw_items[:limit]:
+        if not isinstance(raw_item, dict):
+            raise ModelProtocolError("each strategy must be an object")
+        identifier = _string(raw_item, "strategy_id")
+        strategies.append(
+            Strategy(
+                identifier,
+                identifier,
+                _string(raw_item, "approach"),
+                _string(raw_item, "time_complexity"),
+                "unspecified",
+                (),
+            )
+        )
+    if not strategies:
+        raise ModelProtocolError("at least one strategy is required")
+    if len({item.strategy_id for item in strategies}) != len(strategies):
+        raise ModelProtocolError("strategy identifiers must be unique")
+    return tuple(strategies)
+
+
+def _direct_return(value: JsonValue) -> JsonValue:
+    normalized = to_json_value(value)
+    if isinstance(normalized, dict) and len(normalized) == 1:
+        key = next(iter(normalized))
+        if key in {"result", "output", "value"}:
+            return normalized[key]
+    return normalized
 
 
 def _verification_case(value: JsonValue) -> VerificationCase:

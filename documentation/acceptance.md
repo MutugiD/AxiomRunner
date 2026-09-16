@@ -35,6 +35,11 @@ Ollama or Docker call.
 - No source or report is written partially.
 - Generated solutions and raw run directories remain untracked.
 
+The latest measured outcome is recorded in
+[Benchmark methodology and results](benchmark-methodology.md). The 2026-09-16
+CPU run did not meet the Python-corpus release gate, so `v0.1.0` remains
+untagged.
+
 ## Event model
 
 Every run has a random identifier unrelated to problem content. Structured

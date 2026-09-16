@@ -55,8 +55,8 @@ def test_sandbox_rejects_invalid_harness_output() -> None:
 def test_adversarial_suite_returns_per_case_evidence() -> None:
     output = (
         '{"results":['
-        '{"passed":true,"counterexample":{"args":[0],"kwargs":{}}},'
-        '{"passed":false,"counterexample":{"args":[1],"kwargs":{}}}'
+        '{"passed":true,"counterexample":{"args":[0],"kwargs":{}},"actual":0,"expected":0},'
+        '{"passed":false,"counterexample":{"args":[1],"kwargs":{}},"actual":1,"expected":2}'
         "]}"
     )
     sandbox = DockerSandbox(SandboxLimits(), runner=lambda *_: ProcessResult(0, output, ""))
@@ -70,6 +70,8 @@ def test_adversarial_suite_returns_per_case_evidence() -> None:
     assert [check.check_type for check in checks] == ["boundary", "property"]
     assert [check.status for check in checks] == [CheckStatus.PASSED, CheckStatus.FAILED]
     assert checks[1].details["counterexample"] == {"args": [1], "kwargs": {}}
+    assert checks[1].details["actual"] == 1
+    assert checks[1].details["expected"] == 2
 
 
 def test_adversarial_suite_requires_oracle_program() -> None:

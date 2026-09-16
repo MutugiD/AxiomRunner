@@ -24,7 +24,13 @@ from axiomrunner.domain import (
 )
 from axiomrunner.ingest import load_problem, parse_problem
 from axiomrunner.ollama import OllamaClient
-from axiomrunner.reasoning import ProblemAnalysis, ReasoningEngine, Strategy, TestDesign
+from axiomrunner.reasoning import (
+    PlanningBundle,
+    ProblemAnalysis,
+    ReasoningEngine,
+    Strategy,
+    TestDesign,
+)
 from axiomrunner.repair import RepairCoordinator
 from axiomrunner.sandbox import DockerSandbox
 from axiomrunner.solver import solve
@@ -43,6 +49,7 @@ __all__ = [
     "DockerSandbox",
     "EvidenceScore",
     "OllamaClient",
+    "PlanningBundle",
     "ProblemAnalysis",
     "ReasoningEngine",
     "RepairCoordinator",

@@ -14,7 +14,7 @@ from axiomrunner.domain import (
     VerificationSuite,
 )
 from axiomrunner.errors import ModelProtocolError, RuntimeUnavailableError
-from axiomrunner.reasoning import ProblemAnalysis, Strategy
+from axiomrunner.reasoning import PlanningBundle, ProblemAnalysis, Strategy
 from axiomrunner.reasoning import TestDesign as Design
 from axiomrunner.solver import SolveOrchestrator, _public_counterexamples, solve
 
@@ -39,6 +39,15 @@ class Engine:
         del problem
         assert timeout_s > 0
         return ProblemAnalysis("summary", (), (), (), (), "O(1)", (), ModelMetrics(0))
+
+    def plan(
+        self, problem: ChallengeProblem, strategy_limit: int, timeout_s: float
+    ) -> PlanningBundle:
+        analysis = self.analyze(problem, timeout_s)
+        design = self.design_tests(problem, timeout_s)
+        suite = self.verification_suite(problem, design, timeout_s)
+        strategies = self.strategies(problem, analysis, strategy_limit, timeout_s)
+        return PlanningBundle(analysis, suite, strategies)
 
     def design_tests(self, problem: ChallengeProblem, timeout_s: float) -> Design:
         del problem, timeout_s

@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from dataclasses import replace
 from pathlib import Path
 
+from axiomrunner.benchmark import BenchmarkRecord, benchmark_path, write_benchmark_report
 from axiomrunner.config import ConfigurationError, load_options
 from axiomrunner.doctor import run_doctor
 from axiomrunner.domain import SolveStatus
@@ -29,6 +30,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("doctor", help="check local runtime prerequisites")
     benchmark_parser = subparsers.add_parser("benchmark", help="solve a file or directory corpus")
     benchmark_parser.add_argument("path")
+    benchmark_parser.add_argument("--report")
     return parser
 
 
@@ -47,8 +49,22 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"{label} {diagnostic.name}: {diagnostic.detail}")
         return 0 if all(item.ok for item in diagnostics) else 3
     if args.command == "benchmark":
-        print(f"benchmark pipeline is not implemented: {args.path}")
-        return 4
+        try:
+            benchmark = benchmark_path(args.path, options, on_record=_print_benchmark_record)
+        except InvalidChallengeError as error:
+            print(f"invalid: {error}")
+            return 2
+        print(
+            f"benchmark: solved={benchmark.solved} "
+            f"unsupported={benchmark.rejected_unsupported} elapsed={benchmark.elapsed_s:.2f}s"
+        )
+        if args.report:
+            try:
+                write_benchmark_report(args.report, benchmark, options)
+            except OutputWriteError as error:
+                print(f"output failure: {error}")
+                return 5
+        return 0 if benchmark.successful else 4
     try:
         problem = load_problem(args.problem)
     except UnsupportedLanguageError as error:
@@ -98,3 +114,11 @@ def _exit_code(status: SolveStatus) -> int:
         SolveStatus.NO_VIABLE_CANDIDATE: 4,
         SolveStatus.OUTPUT_FAILURE: 5,
     }[status]
+
+
+def _print_benchmark_record(record: BenchmarkRecord) -> None:
+    print(
+        f"{record.status:22} {record.file} "
+        f"{record.elapsed_s:.2f}s candidates={record.candidates} repairs={record.repairs}",
+        flush=True,
+    )

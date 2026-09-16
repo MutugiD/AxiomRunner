@@ -64,16 +64,30 @@ class OllamaClient:
         *,
         timeout_s: float,
         temperature: float = 0.1,
+        max_tokens: int = 2048,
     ) -> StructuredReply:
         if timeout_s <= 0:
             raise TimeoutError("model request has no remaining budget")
+        normalized_schema = to_json_value(dict(schema))
+        schema_instruction = "Return only JSON matching this schema exactly:\n" + json.dumps(
+            normalized_schema, ensure_ascii=False, separators=(",", ":")
+        )
+        wire_messages = [{"role": item.role, "content": item.content} for item in messages]
+        if wire_messages and wire_messages[0]["role"] == "system":
+            wire_messages[0]["content"] += "\n" + schema_instruction
+        else:
+            wire_messages.insert(0, {"role": "system", "content": schema_instruction})
         payload = {
             "model": self.model,
-            "messages": [{"role": item.role, "content": item.content} for item in messages],
+            "messages": wire_messages,
             "stream": False,
             "think": False,
-            "format": to_json_value(dict(schema)),
-            "options": {"temperature": temperature, "seed": self.seed},
+            "format": normalized_schema,
+            "options": {
+                "temperature": temperature,
+                "seed": self.seed,
+                "num_predict": max_tokens,
+            },
             "keep_alive": "10m",
         }
         started = self._clock()
