@@ -15,6 +15,7 @@ engineering documentation.
 - [Feature catalogue and roadmap](features.md)
 - [Acceptance and observability](acceptance.md)
 - [Adversarial verification and repair](adversarial-verification.md)
+- [Solve orchestration](solve-orchestration.md)
 
 Detailed architecture, product requirements, features, operations, and
 benchmark evidence are added in their corresponding sequential changes.

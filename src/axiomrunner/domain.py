@@ -140,6 +140,8 @@ class SolveResult:
     evidence: tuple[Evidence, ...] = ()
     error: str | None = None
     cutoffs: tuple[str, ...] = ()
+    candidates: tuple[Candidate, ...] = ()
+    run_id: str | None = None
 
     @property
     def successful(self) -> bool:

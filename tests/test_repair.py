@@ -1,7 +1,10 @@
+import pytest
+
 from axiomrunner.adversarial import Counterexample
 from axiomrunner.budget import BudgetManager
 from axiomrunner.candidates import CandidateRepository
 from axiomrunner.domain import Candidate, ChallengeProblem, ModelMetrics
+from axiomrunner.errors import ModelProtocolError
 from axiomrunner.reasoning import ProblemAnalysis
 from axiomrunner.repair import RepairCoordinator
 
@@ -23,8 +26,9 @@ class RepairEngine:
         parent: Candidate,
         counterexamples: tuple[Counterexample, ...],
         timeout_s: float,
+        failures: tuple[str, ...] = (),
     ) -> Candidate:
-        del problem, analysis, counterexamples
+        del problem, analysis, counterexamples, failures
         self.timeout = timeout_s
         return Candidate(
             "child",
@@ -68,3 +72,37 @@ def test_coordinator_declines_after_limit_or_cutoff() -> None:
     coordinator = RepairCoordinator(RepairEngine(), repository, budget, 2)  # type: ignore[arg-type]
     clock.value = budget.phase.repair_cutoff
     assert coordinator.repair(problem, analysis, parent, (Counterexample((), {}),)) is None
+
+
+class FlakyRepairEngine(RepairEngine):
+    calls = 0
+
+    def repair(
+        self,
+        problem: ChallengeProblem,
+        analysis: ProblemAnalysis,
+        parent: Candidate,
+        counterexamples: tuple[Counterexample, ...],
+        timeout_s: float,
+        failures: tuple[str, ...] = (),
+    ) -> Candidate:
+        self.calls += 1
+        if self.calls == 1:
+            raise ModelProtocolError("malformed")
+        return super().repair(problem, analysis, parent, counterexamples, timeout_s, failures)
+
+
+def test_coordinator_retries_one_malformed_repair() -> None:
+    budget = BudgetManager(300, Clock())
+    repository = CandidateRepository()
+    problem, analysis, parent = values()
+    repository.add(parent)
+    engine = FlakyRepairEngine()
+    coordinator = RepairCoordinator(engine, repository, budget, 1)  # type: ignore[arg-type]
+    assert coordinator.repair(problem, analysis, parent, (), ("syntax failed",)) is not None
+    assert engine.calls == 2
+
+
+def test_coordinator_rejects_negative_limit() -> None:
+    with pytest.raises(ValueError, match="negative"):
+        RepairCoordinator(RepairEngine(), CandidateRepository(), BudgetManager(300), -1)  # type: ignore[arg-type]
