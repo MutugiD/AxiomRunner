@@ -17,6 +17,7 @@ engineering documentation.
 - [Adversarial verification and repair](adversarial-verification.md)
 - [Solve orchestration](solve-orchestration.md)
 - [Benchmark methodology and results](benchmark-methodology.md)
+- [Google Colab T4 acceptance runbook](colab-t4-runbook.md)
 
 Detailed architecture, product requirements, features, operations, and
 benchmark evidence are added in their corresponding sequential changes.

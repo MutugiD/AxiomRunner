@@ -38,6 +38,9 @@ Candidate code is never executed on the host.
 
 The latest CPU-only `qwen3:8b` corpus run did not meet the `v0.1.0` release
 gate; see the [benchmark evidence](documentation/benchmark-methodology.md).
+The [Colab T4 acceptance notebook](notebooks/axiomrunner_t4_acceptance.ipynb)
+provides a clean GPU rerun and downloads a redacted evidence bundle.
+[Open the notebook directly in Google Colab](https://colab.research.google.com/github/MutugiD/AxiomRunner/blob/main/notebooks/axiomrunner_t4_acceptance.ipynb).
 
 ## Development
 
