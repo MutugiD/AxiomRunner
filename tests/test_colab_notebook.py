@@ -49,7 +49,7 @@ def test_colab_notebook_preserves_release_controls() -> None:
         assert control in source
 
 
-def test_colab_ollama_install_does_not_use_a_shell_url_pipeline() -> None:
+def test_colab_ollama_install_uses_the_manual_linux_archive() -> None:
     document = _document()
     cells = document["cells"]
     assert isinstance(cells, list)
@@ -59,8 +59,11 @@ def test_colab_ollama_install_does_not_use_a_shell_url_pipeline() -> None:
         if isinstance(cell, dict) and cell.get("cell_type") == "code"
     )
     assert "curl -fsSL" not in code
-    assert 'urllib.request.urlopen("https://ollama.com/install.sh", timeout=60)' in code
-    assert 'subprocess.run(["sh", str(ollama_installer)], check=True)' in code
+    assert "install.sh" not in code
+    assert '"ollama-linux-amd64.tar.zst"' in code
+    assert "urllib.request.urlopen(ollama_archive_url, timeout=300)" in code
+    assert '["tar", "--zstd", "-xf", str(ollama_archive), "-C", "/usr"]' in code
+    assert 'subprocess.run(["ollama", "--version"], check=True)' in code
 
 
 def test_colab_bundle_excludes_corpus_and_generated_solutions() -> None:

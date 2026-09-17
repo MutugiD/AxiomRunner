@@ -39,7 +39,7 @@ The notebook works only inside the temporary Colab VM. It:
 
 - confirms the assigned GPU with `nvidia-smi`;
 - installs Docker for the existing verification sandbox;
-- installs Ollama from its official Linux installer and binds it to loopback;
+- installs Ollama from its official Linux archive and binds it to loopback;
 - installs pinned `uv`, clones the public AxiomRunner repository, and records
   the resolved commit;
 - pulls `qwen3:8b`, warms it, and requires `ollama ps` to report GPU use;
@@ -115,8 +115,8 @@ After the bundle is reviewed:
 
 - [Google Colab FAQ](https://research.google.com/colaboratory/faq.html) for GPU
   availability, changing runtime type, and runtime-duration limitations.
-- [Ollama Linux installation](https://docs.ollama.com/linux) for the installer
-  and service commands used by the notebook.
+- [Ollama Linux installation](https://docs.ollama.com/linux) for the manual
+  archive installation and service command used by the notebook.
 - [Ollama hardware support](https://docs.ollama.com/gpu) for NVIDIA support;
   the T4 is listed with compute capability 7.5.
 - [Ollama FAQ](https://docs.ollama.com/faq) for interpreting the processor
