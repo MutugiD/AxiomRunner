@@ -49,6 +49,20 @@ def test_colab_notebook_preserves_release_controls() -> None:
         assert control in source
 
 
+def test_colab_ollama_install_does_not_use_a_shell_url_pipeline() -> None:
+    document = _document()
+    cells = document["cells"]
+    assert isinstance(cells, list)
+    code = "\n".join(
+        "".join(cell["source"])
+        for cell in cells
+        if isinstance(cell, dict) and cell.get("cell_type") == "code"
+    )
+    assert "curl -fsSL" not in code
+    assert 'urllib.request.urlopen("https://ollama.com/install.sh", timeout=60)' in code
+    assert 'subprocess.run(["sh", str(ollama_installer)], check=True)' in code
+
+
 def test_colab_bundle_excludes_corpus_and_generated_solutions() -> None:
     document = _document()
     cells = document["cells"]
